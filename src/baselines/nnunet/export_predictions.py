@@ -13,17 +13,8 @@ Planned responsibilities:
       * filenames don't carry extra nnU-Net-added suffixes that would break
         stem-matching against the input images
 
-BEFORE WRITING load_prediction() BELOW: actually open one real prediction
-file yourself and look at it. On HPG, after predict_nnunet.slurm has run:
-    conda activate nnunet
-    ls $PRED_DIR                      # confirm filenames (printed by predict_nnunet.slurm)
-    python3 -c "
-    import cv2
-    img = cv2.imread('<full path to one .png from $PRED_DIR>', cv2.IMREAD_UNCHANGED)
-    print(img.shape, img.dtype, sorted(set(img.flatten().tolist())))
-    "
-Compare shape/dtype/values against DATA_CONTRACT.md (single-channel, 8-bit,
-values 0-4) before deciding what load_prediction() needs to do.
+An HPG prediction was inspected before implementing load_prediction():
+shape (192, 256), dtype uint8, and pixel values [0, 1, 2, 3, 4].
 """
 
 import argparse
@@ -66,13 +57,23 @@ def original_stem(image_path: str) -> str:
 
 def load_prediction(pred_path: str) -> np.ndarray:
     """
-    TODO: Load one nnU-Net prediction file and return it as a 2D numpy array
-    of class IDs (values should be 0-4 after this function runs).
-
-    Inspect a real prediction file first (see the module docstring above for
-    the exact steps) and write this to match what you see.
+    Load a single-channel 8-bit nnU-Net prediction containing contract class IDs.
     """
-    raise NotImplementedError
+    mask = cv2.imread(pred_path, cv2.IMREAD_UNCHANGED)
+    if mask is None:
+        raise ValueError(f"Could not read prediction file: {pred_path}")
+    if mask.ndim != 2:
+        raise ValueError(
+            f"Expected a single-channel 2D prediction at {pred_path}; "
+            f"got shape {mask.shape}"
+        )
+    if mask.dtype != np.uint8:
+        raise ValueError(
+            f"Expected an 8-bit prediction at {pred_path}; got dtype {mask.dtype}"
+        )
+
+    validate_mask(mask)
+    return mask
 
 
 def export_one(pred_path: str, out_path: str) -> None:
